@@ -40,33 +40,99 @@ import { RouterLink, RouterView } from 'vue-router'
       <el-main>
         <el-row>
           <el-col :span="12">
-            <div id="myChart" :style="{width: '600px', height: '400px'}"></div>
+            <div id="usageChart" :style="{width: '600px', height: '400px'}"></div>
             <el-table :data="usageTable" style="width: 100%">
-            <el-table-column fixed prop="total" label="Total Space" />
-            <el-table-column fixed prop="valid" label="Used Space" />
-            <el-table-column fixed prop="invalid" label="Invalid Space" />
-            <el-table-column fixed prop="free" label="Free Space" />
+            <el-table-column prop="total" label="Total Space" />
+            <el-table-column prop="valid" label="Used Space" />
+            <el-table-column prop="invalid" label="Invalid Space" />
+            <el-table-column prop="free" label="Free Space" />
             </el-table>
-            <div id="myChart" :style="{width: '100%', height: '50px'}"></div>
-            <div align="center"><el-button @click="updateUsage">Refresh PMEM Usage</el-button></div>
+            <!-- <div id="usageChart" :style="{width: '100%', height: '50px'}"></div> -->
+            <!-- <div align="center"><el-button @click="updateUsage">Refresh PMEM Usage</el-button></div> -->
           </el-col>
           
           <el-col :span="12">
             <!-- model table -->
-            <el-table :data="modelTable" style="width: 100%">
-            <el-table-column fixed prop="name" label="Model Name" />
-            <el-table-column prop="layers" label="#Layers"/>
-            <el-table-column fixed="right" prop="ops" label="Operations">
-              <template #default>
-                <el-button link type="primary" size="small" @click="viewDetail">View Details</el-button>
-                <el-button link type="primary" size="small" @click="deleteModel">Delete</el-button>
+            <el-table :data="modelTable" height="480px" style="width: 100%">
+            <el-table-column type="expand">
+              <template #default="props">
+                <el-table :data="props.row.detail">
+                  <el-table-column prop="detail_name" label="Layer Name" />
+                  <el-table-column prop="detail_size" label="Layer Size" />
+                </el-table>
+              </template>
+            </el-table-column>
+            <el-table-column prop="name"    label="Model Name" />
+            <el-table-column prop="layers"  label="#Layers"/>
+            <el-table-column prop="ops"     label="Operations">
+              <template #default="scope">
+                <el-button link type="primary" size="small" @click="openDialog(scope.$index, scope.row)">Delete</el-button>
+                <el-dialog
+                  v-model="dialogVisible"
+                  title="Tips"
+                  width="30%"
+                  :before-close="handleClose"
+                >
+                  <div align="center">
+                    <el-icon><img :style="{width: '60px', height: '60px'}" src="@/assets/remove.webp"/></el-icon>
+                    <br />
+                    <span>你真的要删了{{model_name}}吗，删了可就真的没了！想好了吗喵？</span>
+                  </div>
+                  <template #footer>
+                    <span class="dialog-footer">
+                      <el-button @click="dialogVisible = false">Cancel</el-button>
+                      <el-button type="primary" @click="deleteModel">
+                        Confirm
+                      </el-button>
+                    </span>
+                  </template>
+                </el-dialog>
               </template>
             </el-table-column>
             </el-table>
             <!-- update models -->
-            <div id="myChart" :style="{width: '600px', height: '100px'}"></div>
-            <div align="center"><el-button @click="updateModels">Refresh Model Information</el-button></div>
+            <!-- <div id="usageChart" :style="{width: '600px', height: '100px'}"></div>
+            <div align="center"><el-button @click="updateModels">Refresh Model Information</el-button></div> -->
           </el-col>
+          
+          <el-col :span="24">
+            <div id="blank1" :style="{width: '600px', height: '50px'}"></div>
+          </el-col>
+
+          <!-- operation buttons -->
+          <el-col :span="6">
+          </el-col>
+          <el-col :span="6">
+            <div align="center"><el-button @click="updateAll">Refresh PMEM Usage</el-button></div>
+          </el-col>
+          <el-col :span="6">
+            <div align="center">
+              <el-button @click="repackVisible = true">Repack PMEM</el-button>
+              <el-dialog
+                v-model="repackVisible"
+                title="Tips"
+                width="30%"
+                :before-close="closeRepack"
+              >
+                <div align="center">
+                  <el-icon><img :style="{width: '60px', height: '60px'}" src="@/assets/party.webp"/></el-icon>
+                  <br />
+                  <span>Repack PMEM？想好了吗喵？</span>
+                </div>
+                <template #footer>
+                  <span class="dialog-footer">
+                    <el-button @click="closeRepack">Cancel</el-button>
+                    <el-button type="primary" @click="repackPM">
+                      Confirm
+                    </el-button>
+                  </span>
+                </template>
+              </el-dialog>
+            </div>
+          </el-col>
+          <el-col :span="6">
+          </el-col>
+          <!-- ends here -->
         </el-row>
       </el-main>
     </el-container>
@@ -76,9 +142,10 @@ import { RouterLink, RouterView } from 'vue-router'
 
 <script>
   import { InfoFilled, Document, House } from '@element-plus/icons-vue'
-  import { ref } from 'vue'
+  import { ElMessageBox } from 'element-plus'
   import axios from 'axios'
-  let myChart = null;
+
+  let usageChart = null;
 
   function GB(x) {
     return (x/(1024*1024*1024)).toFixed(2) + 'GB';
@@ -87,6 +154,8 @@ import { RouterLink, RouterView } from 'vue-router'
   export default {
     data() {
       return {
+        dialogVisible: false,
+        repackVisible: false,
         activeIndex: '1',
         modelTable: [
           {name: 'SBBert', layers: 233},
@@ -106,21 +175,22 @@ import { RouterLink, RouterView } from 'vue-router'
           data:[{value:0, name:'Valid Checkpoints'}, {value:0, name:'Invalid Checkpoints'}, {value:100, name:'Free Space'}]
         }],
         devList: [{devName:'a', id:0}, {devName:'b', id:1}, {devName:'c', id:2}],
+        model_index: 0,
+        model_name: "None"
       };
     },
     mounted() {
-      myChart = this.$echarts.init(document.getElementById("myChart"));
+      usageChart = this.$echarts.init(document.getElementById("usageChart"));
       console.log("init!!!")
       this.initDevice();
-      this.updateUsage();
-      this.updateModels();
+      this.updateAll();
       window.onresize = () => {
-        myChart.resize();
+        usageChart.resize();
       }
     },
     methods: {
       handleSelect(key, keyPath) {
-        console.log(key, keyPath);
+
       },
       updateModels() { 
         axios.get('/models/').then(response => {
@@ -132,14 +202,20 @@ import { RouterLink, RouterView } from 'vue-router'
           }
         })
       },
-      viewDetail() {
-
-      },
       deleteModel() {
-
+        var index = this.$data.model_index;
+        var minfo = this.$data.modelTable.splice(index, 1);
+        var mname = minfo[0].name;
+        console.log("remove:", mname);
+        axios.post('/deletechkpt/', {'name': mname}).then(response => {
+          console.log(response);
+        }, error => {
+          console.log("error!!!!" + error);
+        })
+        this.$data.dialogVisible = false;
+        this.updateAll();
       },
       updateUsage() {
-        console.log("update usage!");
         axios.get('/pmemusage/').then(response => {
           var num_parts = response.data.num_parts;
           var percentages = response.data.percentages;
@@ -151,7 +227,7 @@ import { RouterLink, RouterView } from 'vue-router'
           this.$data.usageTable[0].valid = GB(percentages[0].value);
           this.$data.usageTable[0].invalid = GB(percentages[1].value);
           this.$data.usageTable[0].free = GB(percentages[2].value);
-          myChart.setOption({
+          usageChart.setOption({
             title: {text: 'Persistent Memory Usage', left: 'center'},
             series: this.$data.piechartData
           }, true);
@@ -168,18 +244,39 @@ import { RouterLink, RouterView } from 'vue-router'
         })
       },
       updateDevice(index, row) {
-        // TODO: get PMEM device by name
-        console.log("!!!!afsdfda", index, row);
         axios.post('/switchdevice/', {'content': [index, row]}).then(response => {
           console.log(response);
         }, error => {
           console.log("error!!!!" + error);
         })
         // 我也不知道为啥要搞两遍才行。。。
+        this.updateAll();
+      },
+      updateAll() {
         this.updateUsage();
         this.updateModels();
         this.updateUsage();
         this.updateModels();
+      },
+      openDialog(idx, content) {
+        this.$data.model_index = idx;
+        this.$data.model_name = content.name;
+        this.$data.dialogVisible = true;
+      },
+      handleClose() {
+        this.$data.dialogVisible = false;
+      },
+      repackPM() {
+        axios.post('/repack/').then(response => {
+          console.log(response);
+        }, error => {
+          console.log("error!!!!" + error);
+        })
+        this.$data.repackVisible = false;
+        this.updateAll();
+      },
+      closeRepack() {
+        this.$data.repackVisible = false;
       }
     }
   }

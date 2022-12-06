@@ -38,7 +38,7 @@ import { RouterLink, RouterView } from 'vue-router'
 
   <el-table :data="tableData" height="250" style="width: 100%">
     <el-table-column prop="date" label="Date" width="180" />
-    <el-table-column prop="update" label="Update" />
+    <el-table-column prop="update" label="Update Note" />
   </el-table>
 </template>
 

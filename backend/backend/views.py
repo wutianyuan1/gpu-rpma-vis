@@ -3,11 +3,12 @@ from django.views.decorators.csrf import csrf_exempt
 from rpma_server import PMemDNNCheckpoint, CheckpointSystem
 from glob import glob
 import json
+import os
 
 current_device = "/dev/dax1.0"
+size = 32*1024*1024*1024
 
 def get_model_info(request):
-    size = 16*1024*1024*1024
     chksys = CheckpointSystem(current_device, size, False, False)
     assert(chksys is not None)
     model_dict = {'models': 0, 'model_list': []}
@@ -15,12 +16,13 @@ def get_model_info(request):
     model_dict['models'] = len(chkpts)
     for chkpt_name in chkpts:
         chkpt = chksys.get_chkpt(chkpt_name)
-        nlayers = len(chkpt.get_layers_info())
-        model_dict['model_list'].append({'name': chkpt_name, 'layers': nlayers})
+        layer_info = chkpt.get_layers_info()
+        nlayers = len(layer_info)
+        detail_info = [{'detail_name': i[0], 'detail_size': i[1]} for i in layer_info]
+        model_dict['model_list'].append({'name': chkpt_name, 'layers': nlayers, 'detail': detail_info})
     return JsonResponse(model_dict)
 
 def get_pmem_usage(request):
-    size = 16*1024*1024*1024
     chksys = CheckpointSystem(current_device, size, False, False)
     assert(chksys is not None)
     usage_dict = {'num_parts': 0, 'percentages': []}
@@ -33,6 +35,8 @@ def get_pmem_usage(request):
         chkpt = chksys.get_chkpt(chkpt_name)
         layers = chkpt.get_layers_info()
         usage_size[0] += sum([i[1] for i in layers])
+    removed_chkpts = chksys.invalid_chkpts()
+    usage_size[1] = sum([i[1] for i in removed_chkpts])
     usage_size[-1] = size - sum(usage_size[:-1])
     for i, name in enumerate(part_names):
         usage_dict['percentages'].append({'value':usage_size[i], 'name':name})
@@ -54,4 +58,19 @@ def switch_device(request):
         return HttpResponseServerError("Fuck no such device!")
     global current_device
     current_device = desired_dev
-    return HttpResponse("ack!")
+    return HttpResponse("success")
+
+@csrf_exempt
+def delete_chkpt(request):
+    rm_name = json.loads(request.read())['name']
+    chksys = CheckpointSystem(current_device, size, False, False)
+    if not chksys:
+        return HttpResponseServerError("Fuck open device!")
+    chksys.remove_chkpt(rm_name)
+    return HttpResponse("success")
+
+@csrf_exempt
+def repack_pm(request):
+    cmd = f"/home/wuty/gpu-rpma/build/rpmactl repack -d {current_device} -s {size//(1024*1024)}"
+    os.system(cmd)
+    return HttpResponse("success")

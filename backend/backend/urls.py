@@ -15,12 +15,13 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from backend.views import get_model_info, get_pmem_usage, switch_device, get_devs
-
+from backend.views import *
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('models/', get_model_info),
     path('pmemusage/', get_pmem_usage),
     path('switchdevice/', switch_device),
-    path('getdevs/', get_devs)
+    path('getdevs/', get_devs),
+    path('deletechkpt/', delete_chkpt),
+    path('repack/', repack_pm),
 ]
