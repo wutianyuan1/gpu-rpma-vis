@@ -10,7 +10,7 @@ import { RouterLink, RouterView } from 'vue-router'
     @select="handleSelect"
   >
     <el-menu-item index="1"><a href='/'>      <el-icon><House /></el-icon>GPU-RPMA</a></el-menu-item>
-    <el-menu-item index="2"><a href='/doc'>   <el-icon><Document /></el-icon>Doc</a></el-menu-item>
+    <el-menu-item index="2"><a href='http://10.15.89.84:9999'>   <el-icon><Document /></el-icon>Doc</a></el-menu-item>
     <el-menu-item index="3"><a href='/about'> <el-icon><InfoFilled /></el-icon>About</a></el-menu-item>
     <el-menu-item index="4">
       <a href='https://github.com/wutianyuan1/gpu-rpma'>

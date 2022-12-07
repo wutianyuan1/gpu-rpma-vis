@@ -16,7 +16,8 @@
     "sass": "^1.56.1",
     "vue": "^3.2.45",
     "vue-axios": "^3.5.2",
-    "vue-router": "^4.1.6"
+    "vue-router": "^4.1.6",
+    "vue3-doxygen-xml": "^0.1.0-beta.13"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^3.2.0",
